@@ -1,0 +1,18 @@
+{
+  "name": "asistencia-asamblea-api",
+  "version": "1.0.0",
+  "description": "API de asistencia a asamblea por número de local y coeficiente",
+  "main": "src/servidor.js",
+  "private": true,
+  "scripts": {
+    "start": "node src/servidor.js",
+    "test": "node --test pruebas/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "ws": "^8.18.0"
+  }
+}

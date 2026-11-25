@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: asistencia-asamblea-api
+    runtime: node
+    rootDir: api
+    plan: free
+    region: ohio
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/salud
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_CLAVE
+        sync: false
+      - key: ADMIN_USUARIO
+        value: admin
+      - key: ADMIN_NOMBRE
+        value: Administradora
+      - key: TOKEN_SECRETO
+        generateValue: true
+      - key: ZONA_HORARIA
+        value: America/Bogota
