@@ -1,5 +1,5 @@
 name: asistencia_asamblea
-description: "Asistencia a la asamblea por número de local y coeficiente."
+description: "Asistencia a la asamblea de Trebolis Capellanía Centro Comercial."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -23,3 +23,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/logo.png

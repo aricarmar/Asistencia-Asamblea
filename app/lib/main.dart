@@ -6,12 +6,14 @@ import 'pantallas/inicio_asistente.dart';
 import 'pantallas/ingreso.dart';
 import 'servicios/api.dart';
 import 'servicios/tiempo_real.dart';
+import 'tema.dart';
 
 final GlobalKey<NavigatorState> navegador = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Api.i.cargar();
+  await controladorTema.cargar();
   Api.i.alVencerSesion = () async {
     await Api.i.cerrarSesion();
     TiempoReal.i.detener();
@@ -20,57 +22,38 @@ Future<void> main() async {
       (_) => false,
     );
   };
-  runApp(const AsistenciaApp());
-}
-
-ThemeData tema(Brightness brillo) {
-  final colores = ColorScheme.fromSeed(seedColor: const Color(0xFF0F4C81), brightness: brillo);
-  return ThemeData(
-    useMaterial3: true,
-    colorScheme: colores,
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 52),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 48),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    ),
-  );
+  final Widget inicio;
+  if (!Api.i.haySesion) {
+    inicio = const IngresoPantalla();
+  } else if (Api.i.esAdmin) {
+    inicio = const InicioAdminPantalla();
+  } else {
+    inicio = const InicioAsistentePantalla();
+  }
+  runApp(AsistenciaApp(inicio: inicio));
 }
 
 class AsistenciaApp extends StatelessWidget {
-  const AsistenciaApp({super.key});
+  /// Primera pantalla (se decide una sola vez al abrir la app).
+  final Widget inicio;
+  const AsistenciaApp({super.key, required this.inicio});
 
   @override
   Widget build(BuildContext context) {
-    final Widget inicio;
-    if (!Api.i.haySesion) {
-      inicio = const IngresoPantalla();
-    } else if (Api.i.esAdmin) {
-      inicio = const InicioAdminPantalla();
-    } else {
-      inicio = const InicioAsistentePantalla();
-    }
-    return MaterialApp(
-      navigatorKey: navegador,
-      title: 'Asistencia Asamblea',
-      debugShowCheckedModeBanner: false,
-      theme: tema(Brightness.light),
-      darkTheme: tema(Brightness.dark),
-      locale: const Locale('es', 'CO'),
-      supportedLocales: const [Locale('es', 'CO'), Locale('es')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      home: inicio,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: controladorTema,
+      builder: (context, modo, _) => MaterialApp(
+        navigatorKey: navegador,
+        title: 'Asamblea Trebolis Capellanía',
+        debugShowCheckedModeBanner: false,
+        theme: construirTema(Brightness.light),
+        darkTheme: construirTema(Brightness.dark),
+        themeMode: modo,
+        locale: const Locale('es', 'CO'),
+        supportedLocales: const [Locale('es', 'CO'), Locale('es')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        home: inicio,
+      ),
     );
   }
 }

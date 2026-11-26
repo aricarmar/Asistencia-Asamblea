@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../modelos.dart';
 import '../servicios/api.dart';
 import '../servicios/tiempo_real.dart';
+import '../tema.dart';
 import '../widgets/comunes.dart';
 import 'inicio_asistente.dart';
 
@@ -20,8 +21,8 @@ class _IdentificacionPantallaState extends State<IdentificacionPantalla> {
   late final Local _local;
   late final Asamblea? _asamblea;
   String _tipo = 'propietario';
-  bool _otroApoderado = false;
-  final _nombre = TextEditingController();
+  final _nombres = TextEditingController();
+  final _apellidos = TextEditingController();
   final _cedula = TextEditingController();
   bool _enviando = false;
   String? _error;
@@ -31,30 +32,37 @@ class _IdentificacionPantallaState extends State<IdentificacionPantalla> {
     super.initState();
     _local = Local.desde(Map<String, dynamic>.from(widget.datos['local'] as Map));
     _asamblea = Asamblea.desde(widget.datos['asamblea']);
-    _otroApoderado = _local.apoderado == null;
   }
 
   @override
   void dispose() {
-    _nombre.dispose();
+    _nombres.dispose();
+    _apellidos.dispose();
     _cedula.dispose();
     super.dispose();
   }
 
+  String _limpio(TextEditingController c) => c.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+
   Future<void> _ingresar() async {
     final cuerpo = <String, dynamic>{'numero': _local.numero, 'tipo': _tipo};
-    if (_tipo == 'apoderado' && _otroApoderado) {
-      final nombre = _nombre.text.trim();
+    if (_tipo == 'apoderado') {
+      final nombres = _limpio(_nombres);
+      final apellidos = _limpio(_apellidos);
       final cedula = _cedula.text.trim();
-      if (nombre.split(' ').where((p) => p.isNotEmpty).length < 2) {
-        setState(() => _error = 'Escribe el nombre completo del apoderado (nombre y apellido).');
+      if (nombres.isEmpty) {
+        setState(() => _error = 'Escribe los nombres del apoderado.');
+        return;
+      }
+      if (apellidos.isEmpty) {
+        setState(() => _error = 'Escribe los apellidos del apoderado.');
         return;
       }
       if (cedula.length < 5) {
-        setState(() => _error = 'Escribe la cédula del apoderado.');
+        setState(() => _error = 'Escribe la cédula del apoderado (solo números).');
         return;
       }
-      cuerpo['apoderado_nombre'] = nombre;
+      cuerpo['apoderado_nombre'] = '$nombres $apellidos';
       cuerpo['apoderado_cedula'] = cedula;
     }
     setState(() {
@@ -78,7 +86,7 @@ class _IdentificacionPantallaState extends State<IdentificacionPantalla> {
         MaterialPageRoute(builder: (_) => const InicioAsistentePantalla()),
         (_) => false,
       );
-      mensajero.showSnackBar(SnackBar(content: Text(mensaje), behavior: SnackBarBehavior.floating));
+      mensajero.showSnackBar(SnackBar(content: Text(mensaje)));
     } on ApiError catch (e) {
       if (mounted) setState(() => _error = e.mensaje);
     } finally {
@@ -89,9 +97,12 @@ class _IdentificacionPantallaState extends State<IdentificacionPantalla> {
   @override
   Widget build(BuildContext context) {
     final yaRegistrado = _local.asistencia;
-    final apoderado = _local.apoderado;
+    final colores = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: Text('Local ${_local.numero}')),
+      appBar: AppBar(
+        title: Text('Local ${_local.numero}'),
+        actions: const [BotonTema()],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -124,7 +135,7 @@ class _IdentificacionPantallaState extends State<IdentificacionPantalla> {
                     detalle: 'Al ingresar queda registrada tu asistencia.',
                   ),
                 const SizedBox(height: 20),
-                Text('¿Cómo asistes?', style: Theme.of(context).textTheme.titleMedium),
+                Text('¿Cómo asistes?', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 10),
                 OpcionSeleccion(
                   icono: Icons.person,
@@ -146,51 +157,70 @@ class _IdentificacionPantallaState extends State<IdentificacionPantalla> {
                     _error = null;
                   }),
                 ),
-                if (_tipo == 'apoderado') ...[
-                  const SizedBox(height: 6),
-                  if (apoderado != null) ...[
-                    Text('Apoderado registrado para este local:', style: Theme.of(context).textTheme.bodyMedium),
-                    const SizedBox(height: 8),
-                    OpcionSeleccion(
-                      icono: Icons.how_to_reg,
-                      titulo: 'Soy ${apoderado.nombre}',
-                      subtitulo: 'C.C. ${apoderado.cedula}',
-                      seleccionada: !_otroApoderado,
-                      alTocar: () => setState(() => _otroApoderado = false),
-                    ),
-                    OpcionSeleccion(
-                      icono: Icons.person_add_alt,
-                      titulo: 'Soy otra persona',
-                      subtitulo: 'Escribiré mi nombre y cédula',
-                      seleccionada: _otroApoderado,
-                      alTocar: () => setState(() => _otroApoderado = true),
-                    ),
-                  ],
-                  if (_otroApoderado) ...[
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _nombre,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Nombre completo del apoderado',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _cedula,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(
-                        labelText: 'Cédula del apoderado',
-                        prefixIcon: Icon(Icons.badge_outlined),
-                      ),
-                    ),
-                  ],
-                ],
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  child: _tipo != 'apoderado'
+                      ? const SizedBox(width: double.infinity)
+                      : Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  'Datos del apoderado del local ${_local.numero}',
+                                  style: const TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Escríbelos como aparecen en tu cédula.',
+                                  style: TextStyle(color: colores.onSurfaceVariant),
+                                ),
+                                const SizedBox(height: 14),
+                                TextField(
+                                  controller: _nombres,
+                                  textCapitalization: TextCapitalization.words,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Nombres',
+                                    hintText: 'Ej: Juan Carlos',
+                                    prefixIcon: Icon(Icons.person_outline),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _apellidos,
+                                  textCapitalization: TextCapitalization.words,
+                                  textInputAction: TextInputAction.next,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Apellidos',
+                                    hintText: 'Ej: Pérez Rodríguez',
+                                    prefixIcon: Icon(Icons.person_outline),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _cedula,
+                                  keyboardType: TextInputType.number,
+                                  textInputAction: TextInputAction.done,
+                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Número de cédula',
+                                    prefixIcon: Icon(Icons.badge_outlined),
+                                  ),
+                                  onSubmitted: (_) {
+                                    if (!_enviando) _ingresar();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                ),
                 if (_error != null) ...[
                   const SizedBox(height: 14),
-                  Aviso(icono: Icons.error_outline, color: Theme.of(context).colorScheme.error, texto: _error!),
+                  Aviso(icono: Icons.error_outline, color: colores.error, texto: _error!),
                 ],
                 const SizedBox(height: 20),
                 FilledButton.icon(

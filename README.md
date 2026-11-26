@@ -1,7 +1,8 @@
-# Asistencia a Asamblea
+# Asamblea · Trebolis Capellanía Centro Comercial
 
-App para registrar la asistencia a la asamblea por **número de local**, con el **quórum por coeficiente** en tiempo real.
-Funciona como **página web** y como **app de Android (APK)**.
+App para registrar la asistencia a la asamblea de **Trebolis Capellanía Centro Comercial** (locales **1 al 51**)
+por **número de local**, con el **quórum por coeficiente** en tiempo real.
+Funciona como **página web** y como **app de Android (APK)**, con **modo claro y oscuro** (botón de sol / luna).
 
 Usa la misma tecnología del proyecto de parqueaderos:
 
@@ -16,7 +17,7 @@ Usa la misma tecnología del proyecto de parqueaderos:
 **Propietario o apoderado**
 1. Abre la app y escribe solo el **número de su local**.
 2. Ve su local, su coeficiente y el propietario (con la cédula parcialmente oculta).
-3. Elige **«Soy el propietario»** o **«Soy el apoderado»**. El apoderado escoge el que cargó la administradora o escribe su nombre y cédula.
+3. Elige **«Soy el propietario»** o **«Soy el apoderado»**. El apoderado escribe sus **nombres**, **apellidos** y **cédula**.
 4. Si la asamblea está abierta, **su asistencia queda registrada al ingresar** y el quórum sube en todas las pantallas.
 5. Tiene dos pestañas: **Mi asistencia** (estado y quórum) y **Locales** (escribe un número y ve coeficiente, propietario y apoderado).
 
@@ -24,7 +25,7 @@ Usa la misma tecnología del proyecto de parqueaderos:
 - **Quórum:** porcentaje de coeficiente presente, locales presentes, propietarios, apoderados y últimos en llegar.
 - **Consultar:** escribe un número de local y ve propietario y apoderado con cédula completa; puede registrar la asistencia o editar el local.
 - **Asistencia:** lista de asistentes, registro manual, quitar registros, **descargar Excel** y **acta para imprimir o guardar como PDF**.
-- **Locales:** crear, editar, quitar y **pegar la lista completa desde Excel** (usa `plantillas/plantilla-locales.xlsx`).
+- **Locales:** crear, editar, quitar y **pegar la lista completa desde Excel** (usa `plantillas/plantilla-locales.xlsx`, que ya trae los locales 1 al 51).
 - **Asambleas:** crear, abrir y cerrar. Solo puede haber una abierta a la vez.
 
 Hay quórum cuando el coeficiente presente supera el 50 %.

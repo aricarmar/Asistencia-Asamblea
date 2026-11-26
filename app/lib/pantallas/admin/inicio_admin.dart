@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../servicios/api.dart';
 import '../../servicios/tiempo_real.dart';
+import '../../tema.dart';
 import '../../util.dart';
 import '../consulta_local.dart';
 import '../salir.dart';
@@ -90,8 +91,23 @@ class _InicioAdminPantallaState extends State<InicioAdminPantalla> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_destinos[_pestana].titulo),
+        titleSpacing: ancho ? 16 : null,
+        title: Row(
+          children: [
+            if (ancho) ...[
+              const LogoTrebolis(ancho: 52),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: Text(
+                ancho ? '$nombreCopropiedad · ${_destinos[_pestana].titulo}' : _destinos[_pestana].titulo,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
         actions: [
+          const BotonTema(),
           PopupMenuButton<String>(
             tooltip: 'Opciones',
             onSelected: (v) {

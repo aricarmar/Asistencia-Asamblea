@@ -74,14 +74,14 @@ class _LocalesPestanaState extends State<LocalesPestana> with RefrescoEnVivo<Loc
     final ok = await confirmar(
       context,
       titulo: 'Datos de ejemplo',
-      mensaje: 'Se crean 30 locales de prueba (101 a 115 y 201 a 215) para ensayar la app. '
+      mensaje: 'Se crean 51 locales de prueba (del 1 al 51) con nombres inventados para ensayar la app. '
           'Después puedes quitarlos o reemplazarlos pegando tu lista de Excel.',
       accion: 'Cargar',
     );
     if (!ok) return;
     try {
       await Api.i.post('/api/admin/locales/ejemplo');
-      if (mounted) mostrarMensaje(context, 'Se cargaron 30 locales de ejemplo.');
+      if (mounted) mostrarMensaje(context, 'Se cargaron 51 locales de ejemplo.');
       _cargar();
     } on ApiError catch (e) {
       if (mounted) mostrarMensaje(context, e.mensaje, error: true);

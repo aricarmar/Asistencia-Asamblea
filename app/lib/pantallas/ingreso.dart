@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../servicios/api.dart';
+import '../tema.dart';
 import '../util.dart';
-import '../widgets/comunes.dart';
 import 'identificacion.dart';
 import 'ingreso_admin.dart';
 
@@ -18,10 +20,13 @@ class IngresoPantalla extends StatefulWidget {
 class _IngresoPantallaState extends State<IngresoPantalla> {
   final _numero = TextEditingController();
   bool _cargando = false;
+  bool _lento = false;
+  Timer? _temporizador;
   String? _error;
 
   @override
   void dispose() {
+    _temporizador?.cancel();
     _numero.dispose();
     super.dispose();
   }
@@ -34,16 +39,32 @@ class _IngresoPantallaState extends State<IngresoPantalla> {
     }
     setState(() {
       _cargando = true;
+      _lento = false;
       _error = null;
+    });
+    // Si en 4 segundos no responde, se avisa que el servidor está despertando.
+    _temporizador = Timer(const Duration(seconds: 4), () {
+      if (mounted && _cargando) setState(() => _lento = true);
     });
     try {
       final datos = await Api.i.get('/api/publico/local/${Uri.encodeComponent(numero)}');
       if (!mounted) return;
+      _temporizador?.cancel();
+      setState(() {
+        _cargando = false;
+        _lento = false;
+      });
       await Navigator.push(context, MaterialPageRoute(builder: (_) => IdentificacionPantalla(datos: datos)));
     } on ApiError catch (e) {
       if (mounted) setState(() => _error = e.mensaje);
     } finally {
-      if (mounted) setState(() => _cargando = false);
+      _temporizador?.cancel();
+      if (mounted) {
+        setState(() {
+          _cargando = false;
+          _lento = false;
+        });
+      }
     }
   }
 
@@ -62,12 +83,7 @@ class _IngresoPantallaState extends State<IngresoPantalla> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              campo.text = Api.urlPorDefecto;
-            },
-            child: const Text('Restablecer'),
-          ),
+          TextButton(onPressed: () => campo.text = Api.urlPorDefecto, child: const Text('Restablecer')),
           TextButton(onPressed: () => Navigator.pop(contexto, false), child: const Text('Cancelar')),
           FilledButton(onPressed: () => Navigator.pop(contexto, true), child: const Text('Guardar')),
         ],
@@ -81,101 +97,167 @@ class _IngresoPantallaState extends State<IngresoPantalla> {
 
   @override
   Widget build(BuildContext context) {
-    final colores = Theme.of(context).colorScheme;
+    final oscuro = Theme.of(context).brightness == Brightness.dark;
+    final alto = MediaQuery.sizeOf(context).height;
+    final anchoLogo = (alto * 0.30).clamp(170.0, 260.0);
+    final compacto = alto < 720;
+
     return Scaffold(
-      appBar: AppBar(
-        actions: [
-          IconButton(
-            tooltip: 'Servidor',
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: _configurarServidor,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          child: Contenedor(
-            anchoMaximo: 440,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 8),
-                Center(
-                  child: CircleAvatar(
-                    radius: 46,
-                    backgroundColor: colores.primary,
-                    child: Icon(Icons.how_to_reg, size: 50, color: colores.onPrimary),
+      body: Container(
+        decoration: fondoDegradado(context),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Center(
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: compacto ? 12 : 24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Column(
+                        children: [
+                          LogoTrebolis(ancho: anchoLogo),
+                          SizedBox(height: compacto ? 12 : 20),
+                          const Text(
+                            'BIENVENIDO',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Asamblea · $nombreCopropiedad $tipoCopropiedad',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                          SizedBox(height: compacto ? 18 : 26),
+                          _etiqueta('NÚMERO DE LOCAL'),
+                          TextField(
+                            controller: _numero,
+                            autofocus: true,
+                            textAlign: TextAlign.center,
+                            keyboardType: TextInputType.text,
+                            textCapitalization: TextCapitalization.characters,
+                            textInputAction: TextInputAction.go,
+                            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: 2),
+                            decoration: const InputDecoration(
+                              hintText: 'Ej: 12',
+                              prefixIcon: Icon(Icons.storefront_outlined),
+                            ),
+                            onSubmitted: (_) {
+                              if (!_cargando) _continuar();
+                            },
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 12),
+                            _caja(_error!, Colores.rojoSuave, Colores.rojo),
+                          ],
+                          SizedBox(height: compacto ? 14 : 18),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                // En modo oscuro el botón es verde para que no se pierda en el fondo.
+                                backgroundColor: oscuro ? ColoresOscuros.primario : Colors.black,
+                                foregroundColor: oscuro ? ColoresOscuros.pagina : Colors.white,
+                                shape: const StadiumBorder(),
+                              ),
+                              onPressed: _cargando ? null : _continuar,
+                              child: _cargando
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : const Text(
+                                      'INGRESAR',
+                                      style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1),
+                                    ),
+                            ),
+                          ),
+                          if (_lento) ...[
+                            const SizedBox(height: 12),
+                            _caja(
+                              'Conectando con el servidor… Si estuvo inactivo, puede tardar hasta un minuto en despertar.',
+                              Colores.ambarSuave,
+                              Colores.texto,
+                            ),
+                          ],
+                          SizedBox(height: compacto ? 18 : 28),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(foregroundColor: Colors.white),
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const IngresoAdminPantalla()),
+                            ),
+                            icon: const Icon(Icons.admin_panel_settings_outlined),
+                            label: const Text(
+                              'Ingreso de la administradora',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                                decorationColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                          if (kIsWeb) ...[
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(color: Colors.white70),
+                              ),
+                              onPressed: () =>
+                                  abrirEnlace(context, Uri.base.resolve('descargas/asistencia-asamblea.apk')),
+                              icon: const Icon(Icons.android),
+                              label: const Text('Descargar la app para Android'),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  'Asistencia a la asamblea',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const BotonTema(color: Colors.white),
+                    IconButton(
+                      tooltip: 'Servidor',
+                      icon: const Icon(Icons.settings, color: Colors.white),
+                      onPressed: _configurarServidor,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Escribe el número de tu local para ingresar.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colores.onSurfaceVariant, fontSize: 16),
-                ),
-                const SizedBox(height: 28),
-                TextField(
-                  controller: _numero,
-                  autofocus: true,
-                  textAlign: TextAlign.center,
-                  textCapitalization: TextCapitalization.characters,
-                  textInputAction: TextInputAction.go,
-                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 2),
-                  decoration: InputDecoration(
-                    labelText: 'Número de local',
-                    hintText: 'Ej: 101',
-                    errorText: _error,
-                    errorMaxLines: 3,
-                  ),
-                  onSubmitted: (_) {
-                    if (!_cargando) _continuar();
-                  },
-                ),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: _cargando ? null : _continuar,
-                  icon: _cargando
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.arrow_forward),
-                  label: Text(_cargando ? 'Buscando...' : 'Continuar'),
-                ),
-                if (_cargando) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    'Si es el primer ingreso del día puede tardar hasta un minuto.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: colores.onSurfaceVariant, fontSize: 13),
-                  ),
-                ],
-                const SizedBox(height: 32),
-                TextButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const IngresoAdminPantalla()),
-                  ),
-                  icon: const Icon(Icons.admin_panel_settings_outlined),
-                  label: const Text('Ingreso de la administradora'),
-                ),
-                if (kIsWeb) ...[
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => abrirEnlace(context, Uri.base.resolve('descargas/asistencia-asamblea.apk')),
-                    icon: const Icon(Icons.android),
-                    label: const Text('Descargar la app para Android'),
-                  ),
-                ],
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  Widget _etiqueta(String texto) => Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 6, left: 4),
+          child: Text(texto, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+        ),
+      );
+
+  Widget _caja(String texto, Color fondo, Color color) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(Radios.fila)),
+        child: Text(texto, style: TextStyle(color: color)),
+      );
 }

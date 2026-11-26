@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../modelos.dart';
+import '../tema.dart';
 import '../util.dart';
 
 /// Centra el contenido y limita el ancho en pantallas grandes (web).
@@ -141,8 +142,8 @@ class Aviso extends StatelessWidget {
   }
 }
 
-const Color verdeOk = Color(0xFF2E7D32);
-const Color ambar = Color(0xFFB26A00);
+const Color verdeOk = Color(0xFF43A047);
+const Color ambar = Colores.ambar;
 
 /// Opción grande para tocar (en vez de botones de radio pequeños).
 class OpcionSeleccion extends StatelessWidget {
@@ -258,17 +259,26 @@ class TarjetaLocal extends StatelessWidget {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: colores.primary,
-                  child: Icon(Icons.storefront, color: colores.onPrimary),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(colors: [Colores.verde, Colores.lima]),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    local.numero,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Local ${local.numero}', style: Theme.of(context).textTheme.titleLarge),
+                      Text('Local ${local.numero}',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
                       Text('Coeficiente: ${decimal(local.coeficiente)} %',
                           style: TextStyle(color: colores.onSurfaceVariant, fontSize: 15)),
                     ],
@@ -370,19 +380,53 @@ class TarjetaQuorum extends StatelessWidget {
               label: Text(q.hayQuorum ? 'Hay quórum' : 'Aún no hay quórum (se necesita más del 50 %)'),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _Cifra(titulo: 'Locales presentes', valor: '${q.localesPresentes} de ${q.totalLocales}'),
-                _Cifra(titulo: 'Propietarios', valor: '${q.propietarios}'),
-                _Cifra(titulo: 'Apoderados', valor: '${q.apoderados}'),
-                _Cifra(
-                  titulo: 'Coeficiente presente',
-                  valor: '${decimal(q.coeficientePresente)} de ${decimal(q.coeficienteTotal)}',
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, restricciones) {
+                final dos = restricciones.maxWidth < 560;
+                final ancho = dos ? (restricciones.maxWidth - 10) / 2 : (restricciones.maxWidth - 30) / 4;
+                return Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    SizedBox(
+                      width: ancho,
+                      child: TarjetaEstadistica(
+                        icono: Icons.storefront,
+                        color: Colores.verde,
+                        valor: '${q.localesPresentes} de ${q.totalLocales}',
+                        etiqueta: 'Locales presentes',
+                      ),
+                    ),
+                    SizedBox(
+                      width: ancho,
+                      child: TarjetaEstadistica(
+                        icono: Icons.person,
+                        color: const Color(0xFF1E88E5),
+                        valor: '${q.propietarios}',
+                        etiqueta: 'Propietarios',
+                      ),
+                    ),
+                    SizedBox(
+                      width: ancho,
+                      child: TarjetaEstadistica(
+                        icono: Icons.badge_outlined,
+                        color: const Color(0xFF8E24AA),
+                        valor: '${q.apoderados}',
+                        etiqueta: 'Apoderados',
+                      ),
+                    ),
+                    SizedBox(
+                      width: ancho,
+                      child: TarjetaEstadistica(
+                        icono: Icons.pie_chart_outline,
+                        color: Colores.ambar,
+                        valor: '${decimal(q.coeficientePresente, decimales: 2)} %',
+                        etiqueta: 'Coeficiente presente',
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -391,26 +435,88 @@ class TarjetaQuorum extends StatelessWidget {
   }
 }
 
-class _Cifra extends StatelessWidget {
-  final String titulo;
+/// Tarjeta de cifra con efecto al pasar el mouse (igual que en la app del parqueadero).
+class TarjetaEstadistica extends StatefulWidget {
+  final IconData icono;
+  final Color color;
   final String valor;
-  const _Cifra({required this.titulo, required this.valor});
+  final String etiqueta;
+  final VoidCallback? alTocar;
+
+  const TarjetaEstadistica({
+    super.key,
+    required this.icono,
+    required this.color,
+    required this.valor,
+    required this.etiqueta,
+    this.alTocar,
+  });
+
+  @override
+  State<TarjetaEstadistica> createState() => _TarjetaEstadisticaState();
+}
+
+class _TarjetaEstadisticaState extends State<TarjetaEstadistica> {
+  bool _encima = false;
 
   @override
   Widget build(BuildContext context) {
-    final colores = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minWidth: 130),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: colores.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: [
-          Text(valor, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-          Text(titulo, style: TextStyle(fontSize: 12, color: colores.onSurfaceVariant)),
-        ],
+    final w = widget;
+    const duracion = Duration(milliseconds: 180);
+    final radio = BorderRadius.circular(Radios.fila);
+    final oscuro = Theme.of(context).brightness == Brightness.dark;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _encima = true),
+      onExit: (_) => setState(() => _encima = false),
+      child: AnimatedScale(
+        scale: _encima ? 1.04 : 1,
+        duration: duracion,
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: duracion,
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: oscuro ? ColoresOscuros.superficie : Colores.pagina,
+            borderRadius: radio,
+            border: Border.all(color: _encima ? w.color : Colors.transparent, width: 2),
+            boxShadow: _encima
+                ? [BoxShadow(color: w.color.withAlpha(70), blurRadius: 16, offset: const Offset(0, 6))]
+                : const [],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: radio,
+              onTap: w.alTocar,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AnimatedContainer(
+                      duration: duracion,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: w.color.withAlpha(_encima ? 60 : 30), shape: BoxShape.circle),
+                      child: Icon(w.icono, color: w.color, size: 22),
+                    ),
+                    const SizedBox(height: 8),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(w.valor, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                    ),
+                    Text(
+                      w.etiqueta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

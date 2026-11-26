@@ -1,11 +1,11 @@
 {
-    "name": "Asistencia Asamblea",
-    "short_name": "Asistencia",
+    "name": "Asamblea Trebolis Capellanía",
+    "short_name": "Asamblea Trebolis",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0F4C81",
-    "theme_color": "#0F4C81",
-    "description": "Registro de asistencia a la asamblea por número de local.",
+    "background_color": "#2F7D32",
+    "theme_color": "#2F7D32",
+    "description": "Asistencia a la asamblea de Trebolis Capellanía Centro Comercial.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../modelos.dart';
 import '../servicios/api.dart';
 import '../servicios/tiempo_real.dart';
+import '../tema.dart';
 import '../util.dart';
 import '../widgets/comunes.dart';
 import 'consulta_local.dart';
@@ -25,6 +26,7 @@ class _InicioAsistentePantallaState extends State<InicioAsistentePantalla> {
       appBar: AppBar(
         title: Text(_pestana == 0 ? 'Mi asistencia' : 'Consultar local'),
         actions: [
+          const BotonTema(),
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
@@ -163,15 +165,37 @@ class _MiAsistenciaPestanaState extends State<MiAsistenciaPestana> with Refresco
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    leading: CircleAvatar(
-                      backgroundColor: colores.primary,
-                      child: Icon(Icons.person, color: colores.onPrimary),
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(Radios.tarjeta),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colores.verde, Colores.lima],
                     ),
-                    title: Text('Hola, ${_sesion!['nombre'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text('$rol · Local ${local.numero} · Coeficiente ${decimal(local.coeficiente)} %'),
+                  ),
+                  child: Row(
+                    children: [
+                      const LogoTrebolis(ancho: 84),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Hola, ${_sesion!['nombre'] ?? ''}',
+                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$rol · Local ${local.numero}\nCoeficiente ${decimal(local.coeficiente)} %',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),

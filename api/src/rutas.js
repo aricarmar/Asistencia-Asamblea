@@ -16,6 +16,7 @@ const {
 } = require('./utilidades');
 
 const ZONA = process.env.ZONA_HORARIA || 'America/Bogota';
+const COPROPIEDAD = process.env.NOMBRE_COPROPIEDAD || 'Trebolis Capellanía Centro Comercial';
 const ROLES_ASISTENTE = ['propietario', 'apoderado'];
 
 const CAMPOS_LOCAL = `l.id, l.numero, l.coeficiente::float8 AS coeficiente, l.propietario_nombre, l.propietario_cedula,
@@ -436,32 +437,32 @@ async function importarLocales({ cuerpo }) {
   return { ...resumen, errores, suma_coeficientes: Number(total.toFixed(6)) };
 }
 
-// Datos de prueba para ensayar la app (solo si no hay locales).
+// Datos de prueba para ensayar la app (solo si no hay locales): locales 1 a 51.
+const TOTAL_LOCALES_EJEMPLO = 51;
+
 async function cargarEjemplo() {
   const { rows } = await consulta('SELECT COUNT(*)::int AS total FROM locales WHERE activo');
   if (rows[0].total > 0) throw new ErrorApi(409, 'Ya hay locales registrados. Los datos de ejemplo solo se cargan con la lista vacía.');
-  const nombres = [
-    'María Fernanda López', 'Carlos Andrés Gómez', 'Luz Marina Rodríguez', 'Jorge Enrique Martínez', 'Ana Lucía Herrera',
-    'Pedro Pablo Castro', 'Diana Carolina Ruiz', 'Andrés Felipe Torres', 'Claudia Patricia Díaz', 'Juan Camilo Rojas',
-    'Sandra Milena Vargas', 'Óscar Iván Moreno', 'Paola Andrea Jiménez', 'Luis Alberto Ramírez', 'Gloria Inés Suárez',
-    'Héctor Fabio Ortiz', 'Natalia Ospina', 'Ricardo Mejía', 'Yolanda Cárdenas', 'Fernando Salazar',
-    'Martha Cecilia Peña', 'Diego Alejandro Ríos', 'Liliana Restrepo', 'Germán Acosta', 'Beatriz Cortés',
-    'Mauricio Pardo', 'Adriana Lozano', 'Julio César Muñoz', 'Esperanza Gil', 'Camilo Andrés Pineda',
-  ];
-  const areas = nombres.map((_, i) => 20 + ((i * 37) % 45));
+  const nombres = ['María Fernanda', 'Carlos Andrés', 'Luz Marina', 'Jorge Enrique', 'Ana Lucía', 'Pedro Pablo', 'Diana Carolina',
+    'Andrés Felipe', 'Claudia Patricia', 'Juan Camilo', 'Sandra Milena', 'Óscar Iván', 'Paola Andrea', 'Luis Alberto', 'Gloria Inés',
+    'Héctor Fabio', 'Natalia', 'Ricardo', 'Yolanda', 'Fernando'];
+  const apellidos = ['López', 'Gómez', 'Rodríguez', 'Martínez', 'Herrera', 'Castro', 'Ruiz', 'Torres', 'Díaz', 'Rojas', 'Vargas',
+    'Moreno', 'Jiménez', 'Ramírez', 'Suárez', 'Ortiz', 'Ospina', 'Mejía', 'Cárdenas', 'Salazar', 'Peña', 'Ríos', 'Restrepo'];
+  const areas = Array.from({ length: TOTAL_LOCALES_EJEMPLO }, (_, i) => 20 + ((i * 37) % 45));
   const sumaAreas = areas.reduce((s, a) => s + a, 0);
   const coeficientes = areas.map((a) => Number(((a / sumaAreas) * 100).toFixed(4)));
   const ajuste = Number((100 - coeficientes.reduce((s, c) => s + c, 0)).toFixed(4));
   coeficientes[0] = Number((coeficientes[0] + ajuste).toFixed(4));
   await transaccion(async (bd) => {
-    for (let i = 0; i < nombres.length; i += 1) {
-      const numero = String(i < 15 ? 101 + i : 201 + (i - 15));
+    for (let i = 0; i < TOTAL_LOCALES_EJEMPLO; i += 1) {
+      const numero = String(i + 1);
+      const nombre = `${nombres[i % nombres.length]} ${apellidos[(i * 7) % apellidos.length]}`;
       const cedula = String(10203040 + i * 1234567);
       const conApoderado = i % 7 === 3;
       await bd.query(
         `INSERT INTO locales (numero, coeficiente, propietario_nombre, propietario_cedula, apoderado_nombre, apoderado_cedula, apoderado_registrado_por)
          VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (numero) DO NOTHING`,
-        [numero, coeficientes[i], nombres[i], cedula,
+        [numero, coeficientes[i], nombre, cedula,
           conApoderado ? 'Apoderado de ejemplo ' + numero : null,
           conApoderado ? String(80000000 + i * 4321) : null,
           conApoderado ? 'administradora' : null]
@@ -469,7 +470,7 @@ async function cargarEjemplo() {
     }
   });
   tiempoReal.avisar('locales');
-  return { creados: nombres.length };
+  return { creados: TOTAL_LOCALES_EJEMPLO };
 }
 
 // ---------- Rutas de la administradora: asambleas ----------
@@ -602,6 +603,7 @@ async function exportarCsv({ consultaUrl }) {
   const dec = (n) => (n === null || n === undefined ? '' : String(n).replace('.', ','));
   const tipoTexto = (t) => (t === 'apoderado' ? 'Apoderado' : t === 'propietario' ? 'Propietario' : '');
   const lineas = [
+    [COPROPIEDAD].map(csvCampo).join(';'),
     ['Asamblea', asamblea.nombre].map(csvCampo).join(';'),
     ['Fecha', fechaColombia(asamblea.fecha)].map(csvCampo).join(';'),
     ['Quórum (%)', dec(quorum.porcentaje)].map(csvCampo).join(';'),
@@ -637,17 +639,19 @@ async function actaHtml({ consultaUrl }) {
 <title>Acta de asistencia – ${e(asamblea.nombre)}</title>
 <style>
   body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#1b1b1b}
+  .marca{color:#2F7D32;font-weight:bold;font-size:14px;letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
   h1{font-size:20px;margin:0 0 4px} .sub{color:#555;margin-bottom:16px}
   .res{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px}
   .res div{border:1px solid #ccc;border-radius:8px;padding:8px 12px}
   .res b{display:block;font-size:18px}
   table{border-collapse:collapse;width:100%;font-size:12px}
-  th,td{border:1px solid #bbb;padding:5px 6px;text-align:left} th{background:#eef2f7}
+  th,td{border:1px solid #bbb;padding:5px 6px;text-align:left} th{background:#E6F4D7}
   td.n{text-align:right} td.firma{width:140px}
   .boton{margin-bottom:16px;padding:8px 14px;font-size:14px;cursor:pointer}
   @media print{.boton{display:none} body{margin:10mm}}
 </style></head><body>
 <button class="boton" onclick="window.print()">Imprimir o guardar como PDF</button>
+<div class="marca">${e(COPROPIEDAD)}</div>
 <h1>Acta de asistencia – ${e(asamblea.nombre)}</h1>
 <div class="sub">Fecha: ${e(fechaColombia(asamblea.fecha))}${asamblea.hora_apertura ? ` · Apertura: ${e(asamblea.hora_apertura)}` : ''}${asamblea.hora_cierre ? ` · Cierre: ${e(asamblea.hora_cierre)}` : ''}</div>
 <div class="res">

@@ -64,14 +64,14 @@ test('rutas protegidas exigen sesión', async () => {
   assert.equal((await pedir('GET', '/api/admin/locales', { token: 'basura.firma' })).estado, 401);
 });
 
-test('datos de ejemplo: 30 locales que suman 100 de coeficiente', async () => {
+test('datos de ejemplo: 51 locales (1 a 51) que suman 100 de coeficiente', async () => {
   const r = await pedir('POST', '/api/admin/locales/ejemplo', { token: tokenAdmin });
   assert.equal(r.estado, 200);
-  assert.equal(r.datos.creados, 30);
+  assert.equal(r.datos.creados, 51);
   const otra = await pedir('POST', '/api/admin/locales/ejemplo', { token: tokenAdmin });
   assert.equal(otra.estado, 409);
   const q = await pedir('GET', '/api/quorum', { token: tokenAdmin });
-  assert.equal(q.datos.total_locales, 30);
+  assert.equal(q.datos.total_locales, 51);
   assert.equal(q.datos.coeficiente_total, 100);
   assert.equal(q.datos.asamblea, null);
 });
@@ -81,7 +81,7 @@ test('importar locales pegados desde Excel', async () => {
     'Local\tCoeficiente\tPropietario\tCédula\tApoderado\tCédula apoderado',
     'L-1\t1,25\tRosa Elena Prieto\t52.123.456\t\t',
     'l-2\t0,75\tTomás Quintero\t79123456\tLaura Quintero\t1020304050',
-    '101\t3,5\tNuevo dueño del 101\t11223344',
+    '1\t3,5\tNuevo dueño del 1\t11223344',
     'L-3\tabc\tSin coeficiente\t123',
   ].join('\n');
   const r = await pedir('POST', '/api/admin/locales/importar', { token: tokenAdmin, cuerpo: { texto } });
@@ -116,7 +116,7 @@ test('consulta pública del local muestra la cédula oculta', async () => {
 let tokenPropietario101;
 
 test('ingresar sin asamblea abierta no registra asistencia', async () => {
-  const r = await pedir('POST', '/api/acceso', { cuerpo: { numero: '101', tipo: 'propietario' } });
+  const r = await pedir('POST', '/api/acceso', { cuerpo: { numero: '1', tipo: 'propietario' } });
   assert.equal(r.estado, 200);
   assert.equal(r.datos.rol, 'propietario');
   assert.equal(r.datos.asamblea, null);
@@ -124,7 +124,7 @@ test('ingresar sin asamblea abierta no registra asistencia', async () => {
   assert.equal(r.datos.local.asistencia, null);
   tokenPropietario101 = r.datos.token;
   const s = await pedir('GET', '/api/sesion', { token: tokenPropietario101 });
-  assert.equal(s.datos.local.numero, '101');
+  assert.equal(s.datos.local.numero, '1');
   assert.equal((await pedir('POST', '/api/mi-asistencia', { token: tokenPropietario101 })).estado, 409);
   assert.equal((await pedir('GET', '/api/admin/locales', { token: tokenPropietario101 })).estado, 403);
 });
@@ -175,28 +175,28 @@ test('el propietario queda presente al ingresar y el quórum sube', async () => 
 
   const q = await pedir('GET', '/api/quorum', { token: r.datos.token });
   assert.equal(q.datos.locales_presentes, 2);
-  assert.equal(q.datos.coeficiente_presente, 4.75); // 101 (3,5) + L-1 (1,25)
+  assert.equal(q.datos.coeficiente_presente, 4.75); // 1 (3,5) + L-1 (1,25)
   assert.ok(q.datos.coeficiente_total > 100);
   assert.equal(q.datos.porcentaje, Number(((4.75 / q.datos.coeficiente_total) * 100).toFixed(2)));
   assert.equal(q.datos.hay_quorum, false);
 });
 
 test('el apoderado se registra solo con nombre y cédula', async () => {
-  const sinDatos = await pedir('POST', '/api/acceso', { cuerpo: { numero: '102', tipo: 'apoderado' } });
+  const sinDatos = await pedir('POST', '/api/acceso', { cuerpo: { numero: '2', tipo: 'apoderado' } });
   assert.equal(sinDatos.estado, 400);
   const r = await pedir('POST', '/api/acceso', {
-    cuerpo: { numero: '102', tipo: 'apoderado', apoderado_nombre: '  Julián   Pérez ', apoderado_cedula: '1.098.765.432' },
+    cuerpo: { numero: '2', tipo: 'apoderado', apoderado_nombre: '  Julián   Pérez ', apoderado_cedula: '1.098.765.432' },
   });
   assert.equal(r.estado, 200, JSON.stringify(r.datos));
   assert.equal(r.datos.rol, 'apoderado');
   assert.equal(r.datos.local.asistencia.tipo, 'apoderado');
   assert.equal(r.datos.local.asistencia.nombre, 'Julián Pérez');
-  const admin = await pedir('GET', '/api/locales/102', { token: tokenAdmin });
+  const admin = await pedir('GET', '/api/locales/2', { token: tokenAdmin });
   assert.equal(admin.datos.local.apoderado.cedula, '1098765432');
   assert.equal(admin.datos.local.apoderado.registrado_por, 'apoderado');
   assert.equal(admin.datos.local.asistencia.cedula, '1098765432');
   // El propietario de otro local ve la cédula oculta.
-  const visto = await pedir('GET', '/api/locales/102', { token: tokenPropietario101 });
+  const visto = await pedir('GET', '/api/locales/2', { token: tokenPropietario101 });
   assert.equal(visto.datos.local.apoderado.cedula, '******5432');
   assert.equal(visto.datos.local.asistencia.cedula, '******5432');
 });
@@ -209,13 +209,13 @@ test('apoderado cargado por la administradora entra sin volver a escribir datos'
 });
 
 test('la administradora registra asistencia manual y corrige', async () => {
-  const r = await pedir('POST', '/api/admin/asistencias', { token: tokenAdmin, cuerpo: { numero: '103', tipo: 'propietario' } });
+  const r = await pedir('POST', '/api/admin/asistencias', { token: tokenAdmin, cuerpo: { numero: '3', tipo: 'propietario' } });
   assert.equal(r.estado, 200);
-  const dup = await pedir('POST', '/api/admin/asistencias', { token: tokenAdmin, cuerpo: { numero: '103', tipo: 'propietario' } });
+  const dup = await pedir('POST', '/api/admin/asistencias', { token: tokenAdmin, cuerpo: { numero: '3', tipo: 'propietario' } });
   assert.equal(dup.estado, 409);
   assert.match(dup.datos.error, /ya está registrado/);
   const corregir = await pedir('POST', '/api/admin/asistencias', {
-    token: tokenAdmin, cuerpo: { numero: '103', tipo: 'apoderado', nombre: 'Marta Gil', cedula: '43111222', reemplazar: true },
+    token: tokenAdmin, cuerpo: { numero: '3', tipo: 'apoderado', nombre: 'Marta Gil', cedula: '43111222', reemplazar: true },
   });
   assert.equal(corregir.estado, 200);
   assert.equal(corregir.datos.asistencia.tipo, 'apoderado');
@@ -235,12 +235,12 @@ test('la administradora registra asistencia manual y corrige', async () => {
 
 test('lista de locales con buscador y estado de asistencia', async () => {
   const todo = await pedir('GET', '/api/admin/locales', { token: tokenAdmin });
-  assert.equal(todo.datos.locales.length, 32);
-  assert.deepEqual(todo.datos.locales.slice(0, 3).map((l) => l.numero), ['L-1', 'L-2', '101']);
-  const l101 = todo.datos.locales.find((l) => l.numero === '101');
+  assert.equal(todo.datos.locales.length, 53);
+  assert.deepEqual(todo.datos.locales.slice(0, 3).map((l) => l.numero), ['1', 'L-1', '2']);
+  const l101 = todo.datos.locales.find((l) => l.numero === '1');
   assert.equal(l101.coeficiente, 3.5);
   assert.equal(l101.asistencia.tipo, 'propietario');
-  const l104 = todo.datos.locales.find((l) => l.numero === '104');
+  const l104 = todo.datos.locales.find((l) => l.numero === '4');
   assert.equal(l104.asistencia, null);
   assert.ok(l104.coeficiente > 0);
   const buscado = await pedir('GET', '/api/admin/locales?buscar=quintero', { token: tokenAdmin });
@@ -254,6 +254,7 @@ test('informes: Excel (CSV) y acta para imprimir', async () => {
   const texto = await csv.text();
   assert.ok(texto.includes('Local;Coeficiente;Propietario'));
   assert.ok(texto.includes('Fecha;28/11/2026'));
+  assert.ok(texto.replace(/^\uFEFF/, '').startsWith('Trebolis Capellanía Centro Comercial'));
   assert.ok(texto.includes('L-1;1,25;Rosa Elena Prieto;52123456;Sí;Propietario'));
   const acta = await fetch(`${base}/api/admin/informes/acta?token=${tokenAdmin}`);
   const html = await acta.text();
@@ -264,39 +265,39 @@ test('informes: Excel (CSV) y acta para imprimir', async () => {
 });
 
 test('editar y desactivar locales', async () => {
-  const l = await pedir('GET', '/api/locales/104', { token: tokenAdmin });
+  const l = await pedir('GET', '/api/locales/4', { token: tokenAdmin });
   const id = l.datos.local.id;
   const e = await pedir('PUT', `/api/admin/locales/${id}`, {
     token: tokenAdmin,
-    cuerpo: { numero: '104', coeficiente: '2,5', propietario_nombre: 'Dueña Nueva', propietario_cedula: '1.234.567', apoderado_nombre: '', apoderado_cedula: '' },
+    cuerpo: { numero: '4', coeficiente: '2,5', propietario_nombre: 'Dueña Nueva', propietario_cedula: '1.234.567', apoderado_nombre: '', apoderado_cedula: '' },
   });
   assert.equal(e.estado, 200, JSON.stringify(e.datos));
   assert.equal(e.datos.local.coeficiente, 2.5);
   assert.equal(e.datos.local.apoderado, null);
   const mitad = await pedir('PUT', `/api/admin/locales/${id}`, {
-    token: tokenAdmin, cuerpo: { numero: '104', coeficiente: '2', propietario_nombre: 'X', propietario_cedula: '1', apoderado_nombre: 'Solo nombre' },
+    token: tokenAdmin, cuerpo: { numero: '4', coeficiente: '2', propietario_nombre: 'X', propietario_cedula: '1', apoderado_nombre: 'Solo nombre' },
   });
   assert.equal(mitad.estado, 400);
   const choque = await pedir('PUT', `/api/admin/locales/${id}`, {
-    token: tokenAdmin, cuerpo: { numero: '105', coeficiente: '2', propietario_nombre: 'X', propietario_cedula: '1' },
+    token: tokenAdmin, cuerpo: { numero: '5', coeficiente: '2', propietario_nombre: 'X', propietario_cedula: '1' },
   });
   assert.equal(choque.estado, 409);
   assert.equal((await pedir('DELETE', `/api/admin/locales/${id}`, { token: tokenAdmin })).estado, 200);
-  assert.equal((await pedir('GET', '/api/publico/local/104')).estado, 404);
+  assert.equal((await pedir('GET', '/api/publico/local/4')).estado, 404);
   const crear = await pedir('POST', '/api/admin/locales', {
-    token: tokenAdmin, cuerpo: { numero: '104', coeficiente: 1, propietario_nombre: 'Vuelve', propietario_cedula: '555666' },
+    token: tokenAdmin, cuerpo: { numero: '4', coeficiente: 1, propietario_nombre: 'Vuelve', propietario_cedula: '555666' },
   });
   assert.equal(crear.estado, 200);
   assert.equal(crear.datos.local.id, id);
   const yaExiste = await pedir('POST', '/api/admin/locales', {
-    token: tokenAdmin, cuerpo: { numero: '104', coeficiente: 1, propietario_nombre: 'Vuelve', propietario_cedula: '555666' },
+    token: tokenAdmin, cuerpo: { numero: '4', coeficiente: 1, propietario_nombre: 'Vuelve', propietario_cedula: '555666' },
   });
   assert.equal(yaExiste.estado, 409);
 });
 
 test('cerrar la asamblea: quien entra después no queda registrado', async () => {
   assert.equal((await pedir('POST', `/api/admin/asambleas/${asambleaId}/cerrar`, { token: tokenAdmin })).estado, 200);
-  const r = await pedir('POST', '/api/acceso', { cuerpo: { numero: '110', tipo: 'propietario' } });
+  const r = await pedir('POST', '/api/acceso', { cuerpo: { numero: '10', tipo: 'propietario' } });
   assert.equal(r.datos.asistencia_nueva, false);
   assert.equal(r.datos.asamblea, null);
   // El quórum sigue mostrando la última asamblea.

@@ -21,5 +21,7 @@ services:
         value: Administradora
       - key: TOKEN_SECRETO
         generateValue: true
+      - key: NOMBRE_COPROPIEDAD
+        value: Trebolis Capellanía Centro Comercial
       - key: ZONA_HORARIA
         value: America/Bogota
