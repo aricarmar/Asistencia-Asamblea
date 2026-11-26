@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../servicios/api.dart';
@@ -77,13 +76,17 @@ class _IngresoPantallaState extends State<IngresoPantalla> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Dirección de la API. Normalmente no hay que cambiarla.'),
+            const Text(
+              'Dirección del servidor. Normalmente no hay que cambiarla.\n\n'
+              'Asamblea sin internet: conéctate al Wi-Fi de la asamblea y escribe la dirección que muestra '
+              'el computador, por ejemplo http://192.168.1.10:3000',
+            ),
             const SizedBox(height: 12),
             TextField(controller: campo, decoration: const InputDecoration(labelText: 'Dirección')),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => campo.text = Api.urlPorDefecto, child: const Text('Restablecer')),
+          TextButton(onPressed: () => campo.text = Api.urlPorDefecto.isEmpty ? Api.i.porDefecto : Api.urlPorDefecto, child: const Text('Restablecer')),
           TextButton(onPressed: () => Navigator.pop(contexto, false), child: const Text('Cancelar')),
           FilledButton(onPressed: () => Navigator.pop(contexto, true), child: const Text('Guardar')),
         ],
@@ -197,7 +200,7 @@ class _IngresoPantallaState extends State<IngresoPantalla> {
                             ),
                             icon: const Icon(Icons.admin_panel_settings_outlined),
                             label: const Text(
-                              'Ingreso de la administradora',
+                              'Ingreso de administración y logística',
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 decoration: TextDecoration.underline,
@@ -205,19 +208,6 @@ class _IngresoPantallaState extends State<IngresoPantalla> {
                               ),
                             ),
                           ),
-                          if (kIsWeb) ...[
-                            const SizedBox(height: 8),
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: Colors.white70),
-                              ),
-                              onPressed: () =>
-                                  abrirEnlace(context, Uri.base.resolve('descargas/asistencia-asamblea.apk')),
-                              icon: const Icon(Icons.android),
-                              label: const Text('Descargar la app para Android'),
-                            ),
-                          ],
                         ],
                       ),
                     ),

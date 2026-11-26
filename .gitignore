@@ -20,3 +20,6 @@ app/.idea/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Modo sin internet (se genera con modo-local/1-preparar-modo-local.bat)
+api/publico/

@@ -88,6 +88,44 @@ class _LocalesPestanaState extends State<LocalesPestana> with RefrescoEnVivo<Loc
     }
   }
 
+  Future<void> _eliminar(Local l) async {
+    final ok = await confirmar(
+      context,
+      titulo: 'Eliminar local ${l.numero}',
+      mensaje: '¿Eliminar el local ${l.numero} (${l.propietario.nombre})? Deja de contar para el quórum'
+          '${l.presente ? ' y se quita su asistencia de la asamblea abierta' : ''}. '
+          'Si lo vuelves a crear o pegar desde Excel con el mismo número, se recupera.',
+      accion: 'Eliminar',
+      peligrosa: true,
+    );
+    if (!ok) return;
+    try {
+      await Api.i.delete('/api/admin/locales/${l.id}');
+      if (mounted) mostrarMensaje(context, 'Local ${l.numero} eliminado.');
+      _cargar();
+    } on ApiError catch (e) {
+      if (mounted) mostrarMensaje(context, e.mensaje, error: true);
+    }
+  }
+
+  Future<void> _borrarTodos() async {
+    final ok = await confirmarEscribiendo(
+      context,
+      titulo: 'Borrar todos los locales',
+      mensaje: 'Se quitan los ${_locales.length} locales de la lista y sus asistencias en la asamblea abierta. '
+          'Úsalo, por ejemplo, para quitar los datos de ejemplo antes de pegar los reales.',
+      accion: 'Borrar todos',
+    );
+    if (!ok) return;
+    try {
+      final r = await Api.i.post('/api/admin/locales/borrar-todos', {'confirmacion': 'BORRAR'});
+      if (mounted) mostrarMensaje(context, 'Se quitaron ${r['locales_quitados']} locales.');
+      _cargar();
+    } on ApiError catch (e) {
+      if (mounted) mostrarMensaje(context, e.mensaje, error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_cargado && _error != null) return ErrorReintentar(mensaje: _error!, alReintentar: _cargar);
@@ -126,6 +164,16 @@ class _LocalesPestanaState extends State<LocalesPestana> with RefrescoEnVivo<Loc
                           onPressed: _cargarEjemplo,
                           icon: const Icon(Icons.science_outlined),
                           label: const Text('Cargar datos de ejemplo'),
+                        ),
+                      if (_locales.isNotEmpty && _buscar.isEmpty)
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colores.error,
+                            side: BorderSide(color: colores.error),
+                          ),
+                          onPressed: _borrarTodos,
+                          icon: const Icon(Icons.delete_sweep_outlined),
+                          label: const Text('Borrar todos'),
                         ),
                     ],
                   ),
@@ -179,9 +227,18 @@ class _LocalesPestanaState extends State<LocalesPestana> with RefrescoEnVivo<Loc
                           '${l.apoderado != null ? '\nApoderado: ${l.apoderado!.nombre} (C.C. ${l.apoderado!.cedula})' : ''}',
                         ),
                         isThreeLine: l.apoderado != null,
-                        trailing: l.presente
-                            ? const Tooltip(message: 'Presente', child: Icon(Icons.check_circle, color: verdeOk))
-                            : const Icon(Icons.chevron_right),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (l.presente)
+                              const Tooltip(message: 'Presente', child: Icon(Icons.check_circle, color: verdeOk)),
+                            IconButton(
+                              tooltip: 'Eliminar local',
+                              icon: Icon(Icons.delete_outline, color: colores.error),
+                              onPressed: () => _eliminar(l),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

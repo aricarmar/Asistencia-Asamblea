@@ -131,14 +131,24 @@ class _AsambleasPestanaState extends State<AsambleasPestana> with RefrescoEnVivo
   }
 
   Future<void> _borrar(Asamblea a) async {
-    final ok = await confirmar(
+    if (a.asistentes == 0) {
+      final ok = await confirmar(
+        context,
+        titulo: 'Borrar asamblea',
+        mensaje: '¿Borrar «${a.nombre}»?',
+        accion: 'Borrar',
+        peligrosa: true,
+      );
+      if (ok) await _accion(() => Api.i.delete('/api/admin/asambleas/${a.id}'), 'Asamblea borrada.');
+      return;
+    }
+    final ok = await confirmarEscribiendo(
       context,
-      titulo: 'Borrar asamblea',
-      mensaje: '¿Borrar «${a.nombre}»?',
-      accion: 'Borrar',
-      peligrosa: true,
+      titulo: 'Borrar «${a.nombre}»',
+      mensaje: 'Esta asamblea tiene ${a.asistentes} asistentes registrados. Al borrarla se pierde su lista de asistencia '
+          'y ya no podrás descargar su acta ni su Excel. Úsalo solo para asambleas de prueba.',
     );
-    if (ok) await _accion(() => Api.i.delete('/api/admin/asambleas/${a.id}'), 'Asamblea borrada.');
+    if (ok) await _accion(() => Api.i.delete('/api/admin/asambleas/${a.id}?forzar=si'), 'Asamblea borrada.');
   }
 
   @override
@@ -230,8 +240,9 @@ class _AsambleasPestanaState extends State<AsambleasPestana> with RefrescoEnVivo
                                   icon: const Icon(Icons.table_view_outlined),
                                   label: const Text('Excel'),
                                 ),
-                                if (!a.abierta && a.asistentes == 0)
+                                if (!a.abierta)
                                   TextButton.icon(
+                                    style: TextButton.styleFrom(foregroundColor: colores.error),
                                     onPressed: () => _borrar(a),
                                     icon: const Icon(Icons.delete_outline),
                                     label: const Text('Borrar'),

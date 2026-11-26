@@ -12,6 +12,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   http: ^1.2.2
+  qr_flutter: ^4.1.0
   shared_preferences: ^2.3.2
   url_launcher: ^6.3.1
   web_socket_channel: ^3.0.1
@@ -25,3 +26,14 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+  # Fuente incluida en la app para que se vea igual sin internet.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fuentes/Inter-Regular.otf
+        - asset: assets/fuentes/Inter-SemiBold.otf
+          weight: 600
+        - asset: assets/fuentes/Inter-Bold.otf
+          weight: 700
+        - asset: assets/fuentes/Inter-ExtraBold.otf
+          weight: 800

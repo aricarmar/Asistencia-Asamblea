@@ -61,6 +61,7 @@ ThemeData construirTema(Brightness brillo) {
 
   return ThemeData(
     useMaterial3: true,
+    fontFamily: 'Inter',
     brightness: brillo,
     colorScheme: esquema,
     scaffoldBackgroundColor: oscuro ? ColoresOscuros.pagina : Colores.pagina,

@@ -17,6 +17,8 @@ concurrency:
 env:
   # Dirección de la API en Render. Se configura en Settings > Secrets and variables > Actions > Variables > API_URL
   API_URL: ${{ vars.API_URL || 'https://asistencia-asamblea-api.onrender.com' }}
+  # Dirección de la página web (para el código QR de "Compartir la app")
+  WEB_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
 
 jobs:
   api:
@@ -61,7 +63,7 @@ jobs:
       - run: flutter create --platforms=android,web --org co.asamblea --project-name asistencia_asamblea .
       - run: flutter pub get
       - run: flutter test
-      - run: flutter build web --release --base-href "/${{ github.event.repository.name }}/" --dart-define=API_URL=$API_URL
+      - run: flutter build web --release --no-web-resources-cdn --base-href "/${{ github.event.repository.name }}/" --dart-define=API_URL=$API_URL --dart-define=WEB_URL=$WEB_URL
       - uses: actions/upload-artifact@v4
         with:
           name: web
@@ -98,17 +100,19 @@ jobs:
       - name: Compilar APK (con reintentos)
         run: |
           for intento in 1 2 3 4; do
-            if flutter build apk --release --dart-define=API_URL=$API_URL; then
+            if flutter build apk --release --dart-define=API_URL=$API_URL --dart-define=WEB_URL=$WEB_URL; then
               exit 0
             fi
             echo "Intento $intento falló. Esperando 90 segundos para reintentar..."
             sleep 90
           done
           exit 1
+      - name: Ponerle nombre al APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/asamblea-trebolis.apk
       - uses: actions/upload-artifact@v4
         with:
           name: apk
-          path: app/build/app/outputs/flutter-apk/app-release.apk
+          path: app/build/app/outputs/flutter-apk/asamblea-trebolis.apk
 
   publicar:
     name: Publicar en GitHub Pages
@@ -133,7 +137,7 @@ jobs:
         if: ${{ needs.apk.result == 'success' }}
         run: |
           mkdir -p sitio/descargas
-          cp apk/app-release.apk sitio/descargas/asistencia-asamblea.apk
+          cp apk/asamblea-trebolis.apk sitio/descargas/asamblea-trebolis.apk
       - uses: actions/upload-pages-artifact@v3
         with:
           path: sitio

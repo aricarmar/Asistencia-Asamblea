@@ -84,7 +84,8 @@ class _IngresoAdminPantallaState extends State<IngresoAdminPantalla> {
                           ),
                           const SizedBox(height: 4),
                           const Text(
-                            '$nombreCopropiedad $tipoCopropiedad',
+                            'Administradora o logística · $nombreCopropiedad',
+                            textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.white70),
                           ),
                           const SizedBox(height: 24),

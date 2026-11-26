@@ -237,19 +237,20 @@ async function ingresarConLocal({ cuerpo }) {
 
 async function ingresarAdministradora({ cuerpo }) {
   const usuario = String(cuerpo.usuario || '').trim().toLowerCase();
-  const { rows } = await consulta('SELECT id, usuario, nombre, clave_hash FROM administradores WHERE usuario = $1', [usuario]);
+  const { rows } = await consulta('SELECT id, usuario, nombre, clave_hash, rol FROM administradores WHERE usuario = $1', [usuario]);
   const admin = rows[0];
   if (!admin || !compararClave(cuerpo.clave || '', admin.clave_hash)) {
     throw new ErrorApi(401, 'Usuario o contraseña incorrectos.');
   }
-  const token = firmar({ rol: 'administradora', admin_id: admin.id, nombre: admin.nombre });
-  return { token, rol: 'administradora', nombre: admin.nombre, usuario: admin.usuario };
+  const rol = admin.rol === 'logistica' ? 'logistica' : 'administradora';
+  const token = firmar({ rol, admin_id: admin.id, nombre: admin.nombre });
+  return { token, rol, nombre: admin.nombre, usuario: admin.usuario };
 }
 
 // ---------- Rutas con sesión (cualquier rol) ----------
 
 async function miSesion({ sesion }) {
-  if (sesion.rol === 'administradora') {
+  if (sesion.rol === 'administradora' || sesion.rol === 'logistica') {
     return { rol: sesion.rol, nombre: sesion.nombre, asamblea: await asambleaAbierta() };
   }
   const { rows } = await consulta(`SELECT ${CAMPOS_LOCAL} FROM locales l WHERE l.id = $1`, [sesion.local_id]);
@@ -287,7 +288,7 @@ async function verQuorum({ consultaUrl }) {
 
 // Pestaña "Locales": digita el número y ve propietario o apoderado con su cédula.
 async function buscarLocal({ parametros, sesion, consultaUrl }) {
-  const completo = sesion.rol === 'administradora';
+  const completo = sesion.rol === 'administradora' || sesion.rol === 'logistica';
   const local = await buscarLocalPorNumero(parametros.numero);
   const asamblea = await asambleaElegida(consultaUrl.get('asamblea_id'));
   const asistencia = asamblea ? await asistenciaDeLocal(asamblea.id, local.id) : null;
@@ -389,8 +390,50 @@ async function editarLocal({ parametros, cuerpo }) {
   return { local: presentarLocal(rows[0], true) };
 }
 
+// Un local quitado deja de contar: también se quita su asistencia de la asamblea abierta.
+async function quitarAsistenciasDeInactivos(bd) {
+  const r = await bd.query(
+    `DELETE FROM asistencias a USING asambleas s, locales l
+     WHERE a.asamblea_id = s.id AND s.estado = 'abierta' AND a.local_id = l.id AND NOT l.activo`
+  );
+  return r.rowCount || 0;
+}
+
 async function desactivarLocal({ parametros }) {
-  const { rowCount } = await consulta('UPDATE locales SET activo = FALSE, actualizado_en = now() WHERE id = $1', [Number(parametros.id)]);
+  const quitadas = await transaccion(async (bd) => {
+    const { rowCount } = await bd.query(
+      'UPDATE locales SET activo = FALSE, actualizado_en = now() WHERE id = $1 AND activo',
+      [Number(parametros.id)]
+    );
+    if (!rowCount) throw new ErrorApi(404, 'Ese local no existe.');
+    return quitarAsistenciasDeInactivos(bd);
+  });
+  tiempoReal.avisar('locales');
+  if (quitadas) tiempoReal.avisar('asistencia');
+  return { ok: true };
+}
+
+// Vaciar la lista (por ejemplo, para quitar los datos de ejemplo antes de cargar los reales).
+async function borrarTodosLosLocales({ cuerpo }) {
+  if (String(cuerpo.confirmacion || '').trim().toUpperCase() !== 'BORRAR') {
+    throw new ErrorApi(400, 'Para borrar todos los locales escribe BORRAR.');
+  }
+  const resultado = await transaccion(async (bd) => {
+    const r = await bd.query('UPDATE locales SET activo = FALSE, actualizado_en = now() WHERE activo');
+    const quitadas = await quitarAsistenciasDeInactivos(bd);
+    return { locales: r.rowCount || 0, asistencias: quitadas };
+  });
+  tiempoReal.avisar('locales');
+  tiempoReal.avisar('asistencia');
+  return { ok: true, locales_quitados: resultado.locales, asistencias_quitadas: resultado.asistencias };
+}
+
+async function quitarApoderado({ parametros }) {
+  const { rowCount } = await consulta(
+    `UPDATE locales SET apoderado_nombre = NULL, apoderado_cedula = NULL, apoderado_registrado_por = NULL, actualizado_en = now()
+     WHERE id = $1 AND activo`,
+    [Number(parametros.id)]
+  );
   if (!rowCount) throw new ErrorApi(404, 'Ese local no existe.');
   tiempoReal.avisar('locales');
   return { ok: true };
@@ -429,6 +472,7 @@ async function importarLocales({ cuerpo }) {
     if (cuerpo.reemplazar === true) {
       const r = await bd.query('UPDATE locales SET activo = FALSE WHERE activo AND NOT (numero = ANY($1::text[]))', [filas.map((f) => f.numero)]);
       desactivados = r.rowCount;
+      await quitarAsistenciasDeInactivos(bd);
     }
     return { creados, actualizados, desactivados };
   });
@@ -461,7 +505,11 @@ async function cargarEjemplo() {
       const conApoderado = i % 7 === 3;
       await bd.query(
         `INSERT INTO locales (numero, coeficiente, propietario_nombre, propietario_cedula, apoderado_nombre, apoderado_cedula, apoderado_registrado_por)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (numero) DO NOTHING`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (numero) DO UPDATE SET coeficiente = EXCLUDED.coeficiente, propietario_nombre = EXCLUDED.propietario_nombre,
+           propietario_cedula = EXCLUDED.propietario_cedula, apoderado_nombre = EXCLUDED.apoderado_nombre,
+           apoderado_cedula = EXCLUDED.apoderado_cedula, apoderado_registrado_por = EXCLUDED.apoderado_registrado_por,
+           activo = TRUE, actualizado_en = now()`,
         [numero, coeficientes[i], nombre, cedula,
           conApoderado ? 'Apoderado de ejemplo ' + numero : null,
           conApoderado ? String(80000000 + i * 4321) : null,
@@ -518,18 +566,20 @@ async function cerrarAsamblea({ parametros }) {
   return { asamblea: await asambleaElegida(id) };
 }
 
-async function borrarAsamblea({ parametros }) {
+async function borrarAsamblea({ parametros, consultaUrl }) {
   const id = Number(parametros.id);
   const { rows } = await consulta(
     `SELECT estado, (SELECT COUNT(*)::int FROM asistencias WHERE asamblea_id = $1) AS asistentes FROM asambleas WHERE id = $1`,
     [id]
   );
   if (!rows[0]) throw new ErrorApi(404, 'Esa asamblea no existe.');
-  if (rows[0].estado === 'abierta' || rows[0].asistentes > 0) {
-    throw new ErrorApi(409, 'Solo se pueden borrar asambleas cerradas o sin abrir y sin asistentes.');
+  if (rows[0].estado === 'abierta') throw new ErrorApi(409, 'Primero cierra la asamblea y luego bórrala.');
+  if (rows[0].asistentes > 0 && consultaUrl.get('forzar') !== 'si') {
+    throw new ErrorApi(409, `Esta asamblea tiene ${rows[0].asistentes} asistentes. Confirma escribiendo BORRAR.`);
   }
   await consulta('DELETE FROM asambleas WHERE id = $1', [id]);
-  return { ok: true };
+  tiempoReal.avisar('asamblea');
+  return { ok: true, asistencias_borradas: rows[0].asistentes };
 }
 
 // ---------- Rutas de la administradora: asistencia ----------
@@ -628,6 +678,9 @@ async function exportarCsv({ consultaUrl }) {
 // Acta de asistencia lista para imprimir o guardar como PDF desde el navegador.
 async function actaHtml({ consultaUrl }) {
   const { asamblea, quorum, filas } = await datosInforme(consultaUrl.get('asamblea_id'));
+  const votacionesHtml = await require('./votaciones').htmlVotaciones(asamblea.id);
+  const admin = await consulta("SELECT nombre FROM administradores WHERE rol = 'administradora' ORDER BY id LIMIT 1");
+  const nombreAdmin = admin.rows[0] ? admin.rows[0].nombre : '';
   const e = escaparHtml;
   const asistentes = filas.filter((f) => f.id);
   const filasHtml = asistentes.map((f, i) => `
@@ -648,6 +701,10 @@ async function actaHtml({ consultaUrl }) {
   th,td{border:1px solid #bbb;padding:5px 6px;text-align:left} th{background:#E6F4D7}
   td.n{text-align:right} td.firma{width:140px}
   .boton{margin-bottom:16px;padding:8px 14px;font-size:14px;cursor:pointer}
+  h2{font-size:18px;margin:28px 0 8px;color:#2F7D32} h3{font-size:15px;margin:18px 0 4px}
+  tr.gana td{font-weight:bold;background:#F1F8E9}
+  .firma-admin{margin-top:60px;width:320px;text-align:center;font-weight:bold}
+  .firma-admin .linea{border-top:1px solid #333;margin-bottom:6px} .firma-admin span{font-weight:normal;color:#555;font-size:12px}
   @media print{.boton{display:none} body{margin:10mm}}
 </style></head><body>
 <button class="boton" onclick="window.print()">Imprimir o guardar como PDF</button>
@@ -663,6 +720,8 @@ async function actaHtml({ consultaUrl }) {
 </div>
 <table><thead><tr><th>#</th><th>Local</th><th>Coeficiente</th><th>Asiste como</th><th>Nombre</th><th>Cédula</th><th>Hora</th><th>Firma</th></tr></thead>
 <tbody>${filasHtml || '<tr><td colspan="8">Sin asistentes registrados.</td></tr>'}</tbody></table>
+${votacionesHtml}
+<div class="firma-admin"><div class="linea"></div>${e(nombreAdmin)}<br><span>Administradora · ${e(COPROPIEDAD)}</span></div>
 </body></html>`;
   return { __crudo: true, tipo: 'text/html; charset=utf-8', cuerpo: html };
 }
@@ -677,7 +736,7 @@ async function cambiarClave({ sesion, cuerpo }) {
 }
 
 // ---------- Tabla de rutas ----------
-// acceso: null = pública, 'sesion' = cualquier rol, 'admin' = solo administradora
+// acceso: null = pública, 'sesion' = cualquier rol, 'gestion' = administradora o logística, 'admin' = solo administradora
 
 const rutas = [
   ['GET', '/api/salud', salud, null],
@@ -694,22 +753,24 @@ const rutas = [
   ['POST', '/api/admin/locales', crearLocal, 'admin'],
   ['POST', '/api/admin/locales/importar', importarLocales, 'admin'],
   ['POST', '/api/admin/locales/ejemplo', cargarEjemplo, 'admin'],
+  ['POST', '/api/admin/locales/borrar-todos', borrarTodosLosLocales, 'admin'],
+  ['DELETE', '/api/admin/locales/:id/apoderado', quitarApoderado, 'admin'],
   ['PUT', '/api/admin/locales/:id', editarLocal, 'admin'],
   ['DELETE', '/api/admin/locales/:id', desactivarLocal, 'admin'],
 
-  ['GET', '/api/admin/asambleas', listarAsambleas, 'admin'],
+  ['GET', '/api/admin/asambleas', listarAsambleas, 'gestion'],
   ['POST', '/api/admin/asambleas', crearAsamblea, 'admin'],
   ['POST', '/api/admin/asambleas/:id/abrir', abrirAsamblea, 'admin'],
   ['POST', '/api/admin/asambleas/:id/cerrar', cerrarAsamblea, 'admin'],
   ['DELETE', '/api/admin/asambleas/:id', borrarAsamblea, 'admin'],
 
-  ['GET', '/api/admin/asistencias', listarAsistencias, 'admin'],
-  ['POST', '/api/admin/asistencias', registrarAsistenciaAdmin, 'admin'],
-  ['DELETE', '/api/admin/asistencias/:id', borrarAsistencia, 'admin'],
-  ['GET', '/api/admin/informes/asistencia.csv', exportarCsv, 'admin'],
-  ['GET', '/api/admin/informes/acta', actaHtml, 'admin'],
+  ['GET', '/api/admin/asistencias', listarAsistencias, 'gestion'],
+  ['POST', '/api/admin/asistencias', registrarAsistenciaAdmin, 'gestion'],
+  ['DELETE', '/api/admin/asistencias/:id', borrarAsistencia, 'gestion'],
+  ['GET', '/api/admin/informes/asistencia.csv', exportarCsv, 'gestion'],
+  ['GET', '/api/admin/informes/acta', actaHtml, 'gestion'],
 
-  ['PUT', '/api/admin/clave', cambiarClave, 'admin'],
+  ['PUT', '/api/admin/clave', cambiarClave, 'gestion'],
 ];
 
-module.exports = { rutas };
+module.exports = { rutas, asambleaAbierta, asambleaElegida, buscarLocalPorNumero, asistenciaDeLocal };

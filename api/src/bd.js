@@ -36,21 +36,47 @@ async function transaccion(fn) {
   }
 }
 
+// En el computador (modo sin internet) crea la base de datos si todavía no existe.
+async function crearBaseSiFalta() {
+  try {
+    await pool.query('SELECT 1');
+  } catch (err) {
+    if (err.code !== '3D000' || !esLocal) throw err;
+    const u = new URL(url);
+    const nombre = decodeURIComponent(u.pathname.slice(1));
+    if (!/^[A-Za-z0-9_]+$/.test(nombre)) throw err;
+    u.pathname = '/postgres';
+    const { Client } = require('pg');
+    const cliente = new Client({ connectionString: u.toString(), ssl: false });
+    await cliente.connect();
+    await cliente.query(`CREATE DATABASE ${nombre}`);
+    await cliente.end();
+    console.log(`Base de datos "${nombre}" creada en este computador.`);
+  }
+}
+
 // Crea las tablas y la cuenta de la administradora si no existen.
 async function preparar() {
+  await crearBaseSiFalta();
   const esquema = fs.readFileSync(path.join(__dirname, 'esquema.sql'), 'utf8');
   await pool.query(esquema);
 
-  const { rows } = await pool.query('SELECT COUNT(*)::int AS total FROM administradores');
+  const usuario = (process.env.ADMIN_USUARIO || 'admin').trim().toLowerCase();
+  const nombre = (process.env.ADMIN_NOMBRE || 'Sandra Libey Martinez Real').trim();
+  const { rows } = await pool.query("SELECT COUNT(*)::int AS total FROM administradores WHERE rol = 'administradora'");
   if (rows[0].total === 0) {
-    const usuario = (process.env.ADMIN_USUARIO || 'admin').trim().toLowerCase();
     const clave = process.env.ADMIN_CLAVE || 'admin123';
-    const nombre = process.env.ADMIN_NOMBRE || 'Administradora';
     await pool.query(
-      'INSERT INTO administradores (usuario, nombre, clave_hash) VALUES ($1, $2, $3)',
+      "INSERT INTO administradores (usuario, nombre, clave_hash, rol) VALUES ($1, $2, $3, 'administradora')",
       [usuario, nombre, cifrarClave(clave)]
     );
     console.log(`Cuenta de administradora creada: usuario "${usuario}".`);
+  } else {
+    // Mantiene el nombre de la administradora al día con ADMIN_NOMBRE.
+    await pool.query(
+      "UPDATE administradores SET nombre = $2 WHERE usuario = $1 AND rol = 'administradora' AND nombre <> $2",
+      [usuario, nombre]
+    );
   }
 }
 

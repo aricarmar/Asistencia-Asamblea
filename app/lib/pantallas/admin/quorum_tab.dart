@@ -7,8 +7,9 @@ import '../../widgets/comunes.dart';
 
 /// Quórum en vivo y últimos en llegar.
 class QuorumPestana extends StatefulWidget {
-  final VoidCallback irAAsambleas;
-  const QuorumPestana({super.key, required this.irAAsambleas});
+  /// Solo la administradora puede ir a Asambleas (para logística es null).
+  final VoidCallback? irAAsambleas;
+  const QuorumPestana({super.key, this.irAAsambleas});
 
   @override
   State<QuorumPestana> createState() => _QuorumPestanaState();
@@ -57,8 +58,10 @@ class _QuorumPestanaState extends State<QuorumPestana> with RefrescoEnVivo<Quoru
       return MensajeEstado(
         icono: Icons.event_outlined,
         titulo: 'Todavía no hay asambleas',
-        detalle: 'Crea la asamblea y ábrela para que los propietarios y apoderados registren su asistencia.',
-        textoBoton: 'Ir a Asambleas',
+        detalle: widget.irAAsambleas != null
+            ? 'Crea la asamblea y ábrela para que los propietarios y apoderados registren su asistencia.'
+            : 'La administradora debe crear y abrir la asamblea.',
+        textoBoton: widget.irAAsambleas != null ? 'Ir a Asambleas' : null,
         alPresionar: widget.irAAsambleas,
       );
     }
@@ -81,10 +84,11 @@ class _QuorumPestanaState extends State<QuorumPestana> with RefrescoEnVivo<Quoru
                     detalle: 'Mientras no esté abierta, nadie queda registrado al ingresar.',
                   ),
                   const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(onPressed: widget.irAAsambleas, child: const Text('Ir a Asambleas')),
-                  ),
+                  if (widget.irAAsambleas != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(onPressed: widget.irAAsambleas, child: const Text('Ir a Asambleas')),
+                    ),
                 ],
                 if (_error != null) ...[
                   Aviso(icono: Icons.cloud_off, color: colores.error, texto: _error!),

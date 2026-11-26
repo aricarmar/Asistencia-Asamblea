@@ -61,3 +61,53 @@ Future<void> abrirEnlace(BuildContext context, Uri enlace) async {
     mostrarMensaje(context, 'No se pudo abrir el enlace.', error: true);
   }
 }
+
+/// Confirmación fuerte: hay que escribir una palabra (por ejemplo BORRAR) para continuar.
+Future<bool> confirmarEscribiendo(
+  BuildContext context, {
+  required String titulo,
+  required String mensaje,
+  String palabra = 'BORRAR',
+  String accion = 'Borrar',
+}) async {
+  final campo = TextEditingController();
+  final respuesta = await showDialog<bool>(
+    context: context,
+    builder: (contexto) => StatefulBuilder(
+      builder: (contexto, actualizar) {
+        final ok = campo.text.trim().toUpperCase() == palabra;
+        final colores = Theme.of(contexto).colorScheme;
+        return AlertDialog(
+          icon: Icon(Icons.warning_amber_rounded, color: colores.error, size: 40),
+          title: Text(titulo),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(mensaje),
+              const SizedBox(height: 14),
+              Text('Para confirmar, escribe $palabra:', style: const TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: campo,
+                autofocus: true,
+                textCapitalization: TextCapitalization.characters,
+                decoration: InputDecoration(hintText: palabra),
+                onChanged: (_) => actualizar(() {}),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(contexto, false), child: const Text('Cancelar')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: colores.error, foregroundColor: colores.onError),
+              onPressed: ok ? () => Navigator.pop(contexto, true) : null,
+              child: Text(accion),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+  return respuesta == true;
+}

@@ -521,3 +521,90 @@ class _TarjetaEstadisticaState extends State<TarjetaEstadistica> {
     );
   }
 }
+
+/// Colores para las opciones de una votación.
+const List<Color> coloresOpciones = [
+  Color(0xFF43A047),
+  Color(0xFFE53935),
+  Color(0xFF757575),
+  Color(0xFF1E88E5),
+  Color(0xFF8E24AA),
+  Color(0xFFFB8C00),
+  Color(0xFF00897B),
+  Color(0xFF6D4C41),
+  Color(0xFF3949AB),
+  Color(0xFFC0CA33),
+];
+
+Color colorOpcion(int indice) => coloresOpciones[indice % coloresOpciones.length];
+
+/// Resultados de una votación: una barra por opción con votos y coeficiente.
+class BarrasResultados extends StatelessWidget {
+  final Resultados resultados;
+  final bool mostrarFaltantes;
+  const BarrasResultados({super.key, required this.resultados, this.mostrarFaltantes = true});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = resultados;
+    final colores = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final o in r.opciones) ...[
+          Row(
+            children: [
+              Icon(
+                r.ganadora == o.indice ? Icons.emoji_events : Icons.circle,
+                size: r.ganadora == o.indice ? 20 : 12,
+                color: r.ganadora == o.indice ? Colores.ambar : colorOpcion(o.indice),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  o.texto,
+                  style: TextStyle(
+                    fontWeight: r.ganadora == o.indice ? FontWeight.w900 : FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Text(
+                '${decimal(o.porcentajePresentes, decimales: 2)} %',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: (o.porcentajePresentes / 100).clamp(0.0, 1.0).toDouble()),
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOut,
+              builder: (context, valor, _) => LinearProgressIndicator(
+                value: valor,
+                minHeight: 14,
+                color: colorOpcion(o.indice),
+                backgroundColor: colores.surfaceContainerHighest,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${o.votos} ${o.votos == 1 ? 'voto' : 'votos'} · coeficiente ${decimal(o.coeficiente)} % · '
+            '${decimal(o.porcentajeTotal, decimales: 2)} % del total',
+            style: TextStyle(color: colores.onSurfaceVariant, fontSize: 12.5),
+          ),
+          const SizedBox(height: 14),
+        ],
+        if (mostrarFaltantes)
+          Text(
+            'Votaron ${r.votaronLocales} de ${r.presentesLocales} locales presentes'
+            '${r.faltanLocales > 0 ? ' · faltan ${r.faltanLocales} (${decimal(r.faltanCoeficiente)} % de coeficiente)' : ''}',
+            style: TextStyle(color: colores.onSurfaceVariant, fontWeight: FontWeight.w600),
+          ),
+      ],
+    );
+  }
+}

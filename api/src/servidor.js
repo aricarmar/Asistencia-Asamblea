@@ -1,13 +1,60 @@
 'use strict';
 // Servidor HTTP de la API de Asistencia a Asamblea.
 const http = require('http');
-const { rutas } = require('./rutas');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { rutas: rutasBase } = require('./rutas');
+const { rutasVotacion } = require('./votaciones');
+const { rutasRespaldo } = require('./respaldo');
+
+const rutas = [...rutasBase, ...rutasVotacion, ...rutasRespaldo];
 const { verificar } = require('./token');
 const { ErrorApi } = require('./utilidades');
 const bd = require('./bd');
 const tiempoReal = require('./tiempo_real');
 
-const LIMITE_CUERPO = 2 * 1024 * 1024; // 2 MB (suficiente para pegar cientos de locales)
+const LIMITE_CUERPO = 15 * 1024 * 1024; // 15 MB (listas de Excel y respaldos)
+
+// Modo sin internet: la app web compilada se sirve desde esta carpeta.
+const CARPETA_WEB = path.resolve(process.env.CARPETA_WEB || path.join(__dirname, '..', 'publico'));
+const TIPOS = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.wasm': 'application/wasm', '.otf': 'font/otf', '.ttf': 'font/ttf',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.map': 'application/json',
+  '.bin': 'application/octet-stream', '.frag': 'text/plain', '.apk': 'application/vnd.android.package-archive',
+};
+
+function servirArchivo(req, res, ruta) {
+  if (!fs.existsSync(path.join(CARPETA_WEB, 'index.html'))) return false;
+  let relativa = decodeURIComponent(ruta);
+  if (relativa.endsWith('/')) relativa += 'index.html';
+  let archivo = path.resolve(CARPETA_WEB, '.' + relativa);
+  if (!archivo.startsWith(CARPETA_WEB)) return false;
+  if (!fs.existsSync(archivo) || fs.statSync(archivo).isDirectory()) {
+    // Rutas de la app: se responde con index.html
+    if (path.extname(relativa)) return false;
+    archivo = path.join(CARPETA_WEB, 'index.html');
+  }
+  const tipo = TIPOS[path.extname(archivo).toLowerCase()] || 'application/octet-stream';
+  const esIndice = archivo.endsWith('index.html');
+  res.writeHead(200, { 'Content-Type': tipo, 'Cache-Control': esIndice ? 'no-cache' : 'public, max-age=3600' });
+  if (req.method === 'HEAD') return res.end(), true;
+  fs.createReadStream(archivo).pipe(res);
+  return true;
+}
+
+// Direcciones de este computador en la red Wi-Fi (para conectarse sin internet).
+function direccionesLocales(puerto) {
+  const lista = [];
+  for (const interfaces of Object.values(os.networkInterfaces())) {
+    for (const i of interfaces || []) {
+      if (i.family === 'IPv4' && !i.internal) lista.push(`http://${i.address}:${puerto}`);
+    }
+  }
+  return lista;
+}
 
 // Convierte '/api/locales/:numero' en una expresión regular.
 const tabla = rutas.map(([metodo, patron, manejador, acceso]) => {
@@ -61,8 +108,11 @@ async function atender(req, res) {
     return res.end();
   }
   const url = new URL(req.url, 'http://localhost');
-  if (url.pathname === '/' && req.method === 'GET') {
-    return responder(res, 200, { servicio: 'API de Asistencia a Asamblea', salud: '/api/salud' });
+  if ((req.method === 'GET' || req.method === 'HEAD') && !url.pathname.startsWith('/api/') && url.pathname !== '/ws') {
+    if (servirArchivo(req, res, url.pathname)) return undefined;
+    if (url.pathname === '/') {
+      return responder(res, 200, { servicio: 'API de Asistencia a Asamblea', salud: '/api/salud' });
+    }
   }
 
   const ruta = tabla.find((r) => r.metodo === req.method && r.regex.test(url.pathname));
@@ -81,6 +131,9 @@ async function atender(req, res) {
       if (!sesion) throw new ErrorApi(401, 'Tu sesión terminó. Vuelve a ingresar.');
       if (ruta.acceso === 'admin' && sesion.rol !== 'administradora') {
         throw new ErrorApi(403, 'Esta opción es solo para la administradora.');
+      }
+      if (ruta.acceso === 'gestion' && sesion.rol !== 'administradora' && sesion.rol !== 'logistica') {
+        throw new ErrorApi(403, 'Esta opción es solo para la administradora y logística.');
       }
     }
 
@@ -115,7 +168,16 @@ async function arrancar(puerto = Number(process.env.PORT || 3000)) {
   await bd.preparar();
   const servidor = crearServidor();
   await new Promise((resolve) => servidor.listen(puerto, resolve));
-  console.log(`API de Asistencia a Asamblea escuchando en el puerto ${servidor.address().port}`);
+  const puertoReal = servidor.address().port;
+  console.log(`API de Asistencia a Asamblea escuchando en el puerto ${puertoReal}`);
+  if (fs.existsSync(path.join(CARPETA_WEB, 'index.html')) && process.env.NODE_ENV !== 'test') {
+    console.log('');
+    console.log('=== MODO SIN INTERNET ===');
+    console.log('Conecta los celulares a la misma red Wi-Fi de este computador y abre en el navegador:');
+    direccionesLocales(puertoReal).forEach((d) => console.log('   ' + d));
+    console.log(`En este computador: http://localhost:${puertoReal}`);
+    console.log('');
+  }
   return servidor;
 }
 
@@ -126,4 +188,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { arrancar };
+module.exports = { arrancar, direccionesLocales };

@@ -82,7 +82,7 @@ mixin RefrescoEnVivo<T extends StatefulWidget> on State<T> {
   /// Qué hacer cuando llega un aviso (normalmente volver a cargar los datos).
   void alCambiar();
 
-  Set<String> get eventosQueEscucha => const {'asistencia', 'asamblea', 'locales', 'conectado'};
+  Set<String> get eventosQueEscucha => const {'asistencia', 'asamblea', 'locales', 'votacion', 'voto', 'conectado'};
 
   void escucharEnVivo() {
     _suscripcionEnVivo = TiempoReal.i.eventos.listen((evento) {

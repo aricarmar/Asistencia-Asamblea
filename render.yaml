@@ -18,7 +18,7 @@ services:
       - key: ADMIN_USUARIO
         value: admin
       - key: ADMIN_NOMBRE
-        value: Administradora
+        value: Sandra Libey Martinez Real
       - key: TOKEN_SECRETO
         generateValue: true
       - key: NOMBRE_COPROPIEDAD

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -24,6 +25,18 @@ class Api {
     defaultValue: 'https://asistencia-asamblea-api.onrender.com',
   );
 
+  /// Dirección de la página web pública (para compartir con código QR).
+  static const String urlWeb = String.fromEnvironment(
+    'WEB_URL',
+    defaultValue: 'https://aricarmar.github.io/Asistencia-Asamblea/',
+  );
+
+  /// En modo sin internet la app web se compila sin API_URL y usa el mismo computador que la entrega.
+  String get porDefecto {
+    if (urlPorDefecto.isNotEmpty) return urlPorDefecto;
+    return kIsWeb ? Uri.base.origin : 'http://192.168.1.10:3000';
+  }
+
   String baseUrl = urlPorDefecto;
   String? token;
   String? rol;
@@ -33,11 +46,15 @@ class Api {
   void Function()? alVencerSesion;
 
   bool get esAdmin => rol == 'administradora';
+  bool get esLogistica => rol == 'logistica';
+
+  /// Administradora o logística (panel de gestión).
+  bool get esGestion => esAdmin || esLogistica;
   bool get haySesion => token != null && token!.isNotEmpty;
 
   Future<void> cargar() async {
     final p = await SharedPreferences.getInstance();
-    baseUrl = p.getString('servidor') ?? urlPorDefecto;
+    baseUrl = p.getString('servidor') ?? porDefecto;
     token = p.getString('token');
     rol = p.getString('rol');
     nombre = p.getString('nombre');
@@ -68,7 +85,7 @@ class Api {
     while (limpio.endsWith('/')) {
       limpio = limpio.substring(0, limpio.length - 1);
     }
-    baseUrl = limpio.isEmpty ? urlPorDefecto : limpio;
+    baseUrl = limpio.isEmpty ? porDefecto : limpio;
     final p = await SharedPreferences.getInstance();
     await p.setString('servidor', baseUrl);
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../modelos.dart';
@@ -8,6 +10,7 @@ import '../util.dart';
 import '../widgets/comunes.dart';
 import 'consulta_local.dart';
 import 'salir.dart';
+import 'votacion.dart';
 
 /// Inicio del propietario o apoderado: "Mi asistencia" y "Locales".
 class InicioAsistentePantalla extends StatefulWidget {
@@ -19,12 +22,50 @@ class InicioAsistentePantalla extends StatefulWidget {
 
 class _InicioAsistentePantallaState extends State<InicioAsistentePantalla> {
   int _pestana = 0;
+  StreamSubscription<String>? _suscripcion;
+  int? _ultimaPreguntaAvisada;
+
+  static const _titulos = ['Mi asistencia', 'Votación', 'Consultar local'];
+
+  @override
+  void initState() {
+    super.initState();
+    TiempoReal.i.iniciar();
+    _suscripcion = TiempoReal.i.eventos.listen((evento) {
+      if (evento == 'votacion' || evento == 'conectado') _revisarVotacion();
+    });
+    _revisarVotacion();
+  }
+
+  @override
+  void dispose() {
+    _suscripcion?.cancel();
+    super.dispose();
+  }
+
+  /// Si logística abrió una pregunta nueva y este local no ha votado, se muestra la pestaña Votación.
+  Future<void> _revisarVotacion() async {
+    try {
+      final r = await Api.i.get('/api/votacion/actual');
+      final actual = VotacionActual.desde(r);
+      final p = actual.pregunta;
+      if (!mounted || p == null || actual.miVoto != null || p.id == _ultimaPreguntaAvisada) return;
+      _ultimaPreguntaAvisada = p.id;
+      setState(() => _pestana = 1);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('¡Nueva votación! Pregunta ${p.numero}: ${p.texto}'),
+          duration: const Duration(seconds: 5),
+        ));
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_pestana == 0 ? 'Mi asistencia' : 'Consultar local'),
+        title: Text(_titulos[_pestana]),
         actions: [
           const BotonTema(),
           IconButton(
@@ -38,6 +79,7 @@ class _InicioAsistentePantallaState extends State<InicioAsistentePantalla> {
         index: _pestana,
         children: const [
           MiAsistenciaPestana(),
+          VotacionPestana(),
           ConsultaLocalPestana(),
         ],
       ),
@@ -46,6 +88,7 @@ class _InicioAsistentePantallaState extends State<InicioAsistentePantalla> {
         onDestinationSelected: (i) => setState(() => _pestana = i),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.how_to_reg_outlined), selectedIcon: Icon(Icons.how_to_reg), label: 'Mi asistencia'),
+          NavigationDestination(icon: Icon(Icons.how_to_vote_outlined), selectedIcon: Icon(Icons.how_to_vote), label: 'Votación'),
           NavigationDestination(icon: Icon(Icons.storefront_outlined), selectedIcon: Icon(Icons.storefront), label: 'Locales'),
         ],
       ),

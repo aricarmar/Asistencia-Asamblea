@@ -25,7 +25,7 @@ Future<void> main() async {
   final Widget inicio;
   if (!Api.i.haySesion) {
     inicio = const IngresoPantalla();
-  } else if (Api.i.esAdmin) {
+  } else if (Api.i.esGestion) {
     inicio = const InicioAdminPantalla();
   } else {
     inicio = const InicioAsistentePantalla();
